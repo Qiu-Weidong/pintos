@@ -17,7 +17,8 @@
 #include "threads/palloc.h"
 #include "threads/thread.h"
 #include "threads/vaddr.h"
-
+// 邱维东的修改
+#define MAX_ARGV 256
 static thread_func start_process NO_RETURN;
 static bool load (const char *cmdline, void (**eip) (void), void **esp);
 
@@ -208,7 +209,7 @@ struct Elf32_Phdr
 #define PF_W 2          /* Writable. */
 #define PF_R 4          /* Readable. */
 
-static bool setup_stack (void **esp);
+static bool setup_stack (void **esp, char * file_name);
 static bool validate_segment (const struct Elf32_Phdr *, struct file *);
 static bool load_segment (struct file *file, off_t ofs, uint8_t *upage,
                           uint32_t read_bytes, uint32_t zero_bytes,
@@ -315,7 +316,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
     }
 
   /* Set up stack. */
-  if (!setup_stack (esp))
+  if (!setup_stack (esp,file_name))
     goto done;
 
   /* Start address. */
@@ -440,7 +441,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 /* Create a minimal stack by mapping a zeroed page at the top of
    user virtual memory. */
 static bool
-setup_stack (void **esp) 
+setup_stack (void **esp, char * file_name) 
 {
   uint8_t *kpage;
   bool success = false;
@@ -454,6 +455,39 @@ setup_stack (void **esp)
       else
         palloc_free_page (kpage);
     }
+  
+
+  // 邱维东的修改
+  // 在这里设置参数
+  char * param, * save_ptr;
+  char * argv[MAX_ARGV];
+  int argc = 0;
+  param = strtok_r(file_name," ",&save_ptr);
+  while(param != NULL)
+  {
+    int len = strlen(param)+1;
+    *esp -= len;
+    memcpy(*esp,param,len);
+    argv[argc++] = *esp;
+  }
+  // 4字节对其
+  while((int)(*esp)%4 != 0) *esp--;
+
+  argv[argc] = NULL;
+  for(int i=argc;i>=0;i--)
+  {
+    *esp -= sizeof(char *);
+    memcpy(*esp,argv+i,sizeof(char *));
+  }
+  *esp -= sizeof(char **);
+  *(char **)(*esp) = *esp + sizeof(char **);
+  *esp -= sizeof(int);
+  memcpy(*esp,&argc,sizeof(int));
+  *esp -= sizeof(void *);
+  // *(void **)(*esp) = NULL;
+  memset(*esp,0,sizeof(void *));
+  
+
   return success;
 }
 
