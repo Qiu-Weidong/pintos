@@ -480,8 +480,10 @@ setup_stack (void **esp, char * file_name)
     *esp -= sizeof(char *);
     memcpy(*esp,argv+i,sizeof(char *));
   }
+  char ** tmp = *esp;
   *esp -= sizeof(char **);
-  *(char **)(*esp) = *esp + sizeof(char **);
+  // *(char **)(*esp) = *esp + sizeof(char **);
+  memcpy(*esp,&tmp,sizeof(char **));
   *esp -= sizeof(int);
   memcpy(*esp,&argc,sizeof(int));
   *esp -= sizeof(void *);
