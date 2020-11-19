@@ -469,6 +469,7 @@ setup_stack (void **esp, char * file_name)
     *esp -= len;
     memcpy(*esp,param,len);
     argv[argc++] = *esp;
+    param = strtok_r(NULL," ",&save_ptr);
   }
   // 4字节对其
   while((int)(*esp)%4 != 0) *esp--;
