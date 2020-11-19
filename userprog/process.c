@@ -490,6 +490,11 @@ setup_stack (void **esp, char * file_name)
   // *(void **)(*esp) = NULL;
   memset(*esp,0,sizeof(void *));
   
+  // 测试
+  char my_string[8] = "CSCI350\0";
+  *esp -= sizeof(char) * 8;
+  memcpy(*esp, my_string, sizeof(char) * 8);
+  hex_dump((uintptr_t)*esp, *esp, sizeof(char) * 8, true);
 
   return success;
 }
