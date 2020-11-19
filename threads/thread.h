@@ -5,6 +5,12 @@
 #include <list.h>
 #include <stdint.h>
 
+// 邱维东的修改
+#ifndef USERPROG
+#define USERPROG
+#endif // USERPROG
+// 邱维东的修改结束
+
 /* States in a thread's life cycle. */
 enum thread_status
   {
@@ -100,6 +106,8 @@ struct thread
 
     /* Owned by thread.c. */
     unsigned magic;                     /* Detects stack overflow. */
+    // 邱维东的修改  
+    int ret; // 用于表示返回值
   };
 
 /* If false (default), use round-robin scheduler.

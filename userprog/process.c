@@ -38,8 +38,13 @@ process_execute (const char *file_name)
     return TID_ERROR;
   strlcpy (fn_copy, file_name, PGSIZE);
 
+  // 邱维东的修改
+  char * exec_name,* save_ptr;
+  exec_name = strtok_r(file_name," ",&save_ptr);
+
   /* Create a new thread to execute FILE_NAME. */
-  tid = thread_create (file_name, PRI_DEFAULT, start_process, fn_copy);
+  tid = thread_create (exec_name, PRI_DEFAULT, start_process, fn_copy);
+  // 邱维东的修改结束
   if (tid == TID_ERROR)
     palloc_free_page (fn_copy); 
   return tid;
@@ -88,6 +93,12 @@ start_process (void *file_name_)
 int
 process_wait (tid_t child_tid UNUSED) 
 {
+  // 邱维东的修改
+  while(1)
+  {
+    thread_yield();
+  }
+  // 邱维东的修改结束
   return -1;
 }
 
@@ -113,6 +124,8 @@ process_exit (void)
       cur->pagedir = NULL;
       pagedir_activate (NULL);
       pagedir_destroy (pd);
+      // 邱维东的修改
+      printf("%s:exit(%d)\n",cur->name,cur->ret);
     }
 }
 
