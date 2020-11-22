@@ -1,4 +1,5 @@
 #include "userprog/syscall.h"
+#include "lib/user/syscall.h"
 #include <stdio.h>
 #include <syscall-nr.h>
 #include "threads/interrupt.h"
@@ -113,4 +114,57 @@ syscall_handler(struct intr_frame *f UNUSED)
   // default:
   //   break;
   // }
+}
+
+void halt(void)
+{
+  printf("halt\n");
+}
+void exit(int status)
+{
+  printf("exit(%d)\n",status);
+}
+pid_t exec(const char * file)
+{
+  printf("exec:%s\n",file);
+}
+int wait(pid_t pid)
+{
+  printf("wait:%d\n",pid);
+}
+bool create(const char * file,unsigned initial_size)
+{
+  printf("create:%s %d\n",file,initial_size);
+}
+bool remove(const char * file)
+{
+  printf("remove %s\n",file);
+}
+int open(const char * file)
+{
+  printf("open : %s\n",file);
+}
+int filesize(int fd)
+{
+  printf("filesize:%d\n",fd);
+}
+int read(int fd,void * buffer,unsigned length)
+{
+  printf("read:%d %d\n",fd,length);
+}
+int write(int fd,const void * buffer,unsigned length)
+{
+  printf("write:%d %d\n",fd,length);
+}
+void seek(int fd,unsigned position)
+{
+  printf("seek:%d %d\n",fd,position);
+}
+unsigned tell(int fd)
+{
+  printf("tell:%d\n",fd);
+}
+void close(int fd)
+{
+  printf("close:%d\n",fd);
 }
