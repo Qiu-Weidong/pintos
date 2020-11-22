@@ -41,8 +41,6 @@ tid_t process_execute(const char *file_name)
 
   // 邱维东的修改
   char *exec_name, *save_ptr = NULL;
-  // char buffer[256];
-  // save_ptr = buffer;
   exec_name = strtok_r(file_name, " ", &save_ptr);
 
   /* Create a new thread to execute FILE_NAME. */
@@ -61,10 +59,6 @@ start_process(void *file_name_)
   char *file_name = file_name_;
   struct intr_frame if_;
   bool success;
-  
-  // 照着文档写试试
-  // char * exec_name = NULL,*save_ptr=NULL;
-  // exec_name = strtok_r(file_name," ",&save_ptr);
 
   /* Initialize interrupt frame and load executable. */
   memset(&if_, 0, sizeof if_);
@@ -72,29 +66,6 @@ start_process(void *file_name_)
   if_.cs = SEL_UCSEG;
   if_.eflags = FLAG_IF | FLAG_MBS;
   success = load(file_name, &if_.eip, &if_.esp);
-  
-  // char * esp = (char *)if_.esp;
-  // char *arg[256];
-  // int i,n = 0;
-  // char * param;
-  // for(param=exec_name;param!=NULL;param=strtok_r(NULL," ",&save_ptr))
-  // {
-  //   esp -= strlen(param)+1;
-  //   strlcpy(esp,param,strlen(param)+2);
-  //   arg[n++] = esp;
-  // }
-  // while ((int)esp%4!=0)
-  // {
-  //   esp--;
-  // }
-  // int * p = esp - 4;
-  // *p--=0;
-  // for(int i=n-1;i>=0;i--) *p--=(int *)arg[i];
-  // *p--=p+1;
-  // *p--=n;
-  // *p--=0;
-  // esp=p+1;
-  // if_.esp=esp;
 
   /* If load failed, quit. */
   palloc_free_page(file_name);
@@ -159,7 +130,7 @@ void process_exit(void)
     pagedir_activate(NULL);
     pagedir_destroy(pd);
     // 邱维东的修改
-    printf("%s:exit(%d)\n", cur->name, cur->ret);
+    printf("%s: exit(%d)\n", cur->name, cur->ret);
   }
   sema_up(&thread_current()->parent->wait_for_child);
 }
@@ -261,22 +232,35 @@ bool load(const char *file_name, void (**eip)(void), void **esp)
   bool success = false;
   int i;
 
+  char *exec_name,*save_ptr;
+  char fn_cpy[256];
+  strlcpy(fn_cpy,file_name,strlen(file_name)+1);
+  exec_name = strtok_r(fn_cpy," ",&save_ptr);
+
   /* Allocate and activate page directory. */
   t->pagedir = pagedir_create();
   if (t->pagedir == NULL)
     goto done;
   process_activate();
 
+  // printf("begin load file!\n");
   /* Open executable file. */
-  file = filesys_open(file_name);
+  file = filesys_open(exec_name);
+  // printf("end load file!\n");
   if (file == NULL)
   {
-    printf("load: %s: open failed\n", file_name);
+    printf("load: %s: open failed\n", exec_name);
     goto done;
   }
 
   /* Read and verify executable header. */
-  if (file_read(file, &ehdr, sizeof ehdr) != sizeof ehdr || memcmp(ehdr.e_ident, "\177ELF\1\1\1", 7) || ehdr.e_type != 2 || ehdr.e_machine != 3 || ehdr.e_version != 1 || ehdr.e_phentsize != sizeof(struct Elf32_Phdr) || ehdr.e_phnum > 1024)
+  if (file_read(file, &ehdr, sizeof ehdr) != sizeof ehdr 
+      || memcmp(ehdr.e_ident, "\177ELF\1\1\1", 7) 
+      || ehdr.e_type != 2 
+      || ehdr.e_machine != 3 
+      || ehdr.e_version != 1 
+      || ehdr.e_phentsize != sizeof(struct Elf32_Phdr) 
+      || ehdr.e_phnum > 1024)
   {
     printf("load: %s: error loading executable\n", file_name);
     goto done;
@@ -339,7 +323,7 @@ bool load(const char *file_name, void (**eip)(void), void **esp)
       break;
     }
   }
-
+  // printf("before setup_stack!\n");
   /* Set up stack. */
   if (!setup_stack(esp, file_name))
     goto done;
@@ -351,6 +335,7 @@ bool load(const char *file_name, void (**eip)(void), void **esp)
 
 done:
   /* We arrive here whether the load is successful or not. */
+  // printf("end setup_stack!\n");
   file_close(file);
   return success;
 }
@@ -484,41 +469,54 @@ setup_stack(void **esp, char *file_name)
   // 邱维东的修改
   // 在这里设置参数
   char * param, * save_ptr=NULL;
-  // char buffer[256];
-  // save_ptr = buffer;
   char * argv[MAX_ARGV];
   int argc = 0;
   param = strtok_r(file_name," ",&save_ptr);
+  
   while(param != NULL)
   {
+    // printf("param : %s\n",param);
     int len = strlen(param)+1;
     *esp -= len;
     memcpy(*esp,param,len);
     argv[argc++] = *esp;
     param = strtok_r(NULL," ",&save_ptr);
+    // printf("param : %s\n",param);
   }
   // 4字节对其
-  while((int)(*esp)%4 != 0) *esp--;
-
+  while((int)(*esp)%4 != 0) *esp-=1;
+  // printf("1\n");
   argv[argc] = NULL;
   for(int i=argc;i>=0;i--)
   {
     *esp -= sizeof(char *);
     memcpy(*esp,argv+i,sizeof(char *));
   }
+  // printf("2\n");
   char ** tmp = (char **)*esp;
   *esp -= sizeof(char **);
   // *(char **)(*esp) = *esp + sizeof(char **);
   memcpy(*esp,&tmp,sizeof(char **));
-
+  // printf("3\n");
   // 设置argc
   *esp -= sizeof(int);
   memcpy(*esp,&argc,sizeof(int));
-
+  // printf("4\n");
   // 设置返回地址0
   *esp -= sizeof(void *);
   // *(void **)(*esp) = NULL;
   memset(*esp,0,sizeof(void *));
+
+
+  printf("(args) begin\n");
+  int ret = *((int *)(*esp));
+  argc = *((int *)((*esp)+4));
+  char ** agv = *((char ***)((*esp)+8));
+  printf("(args) argc = %d\n",argc);
+  for(int i=0;i<argc;i++)
+    printf("(args) argv[%d] = \'%s\'\n",i,*(agv+i));
+  printf("(args) argv[%d] = null\n",argc);
+  printf("(args) end\n");
 
   return success;
 }
