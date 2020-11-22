@@ -463,6 +463,9 @@ init_thread (struct thread *t, const char *name, int priority)
   t->stack = (uint8_t *) t + PGSIZE;
   t->priority = priority;
   t->magic = THREAD_MAGIC;
+  // 邱维东的修改
+  t->parent = running_thread();
+  sema_init(&t->wait_for_child,0);
 
   old_level = intr_disable ();
   list_push_back (&all_list, &t->allelem);

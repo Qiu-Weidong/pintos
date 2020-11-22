@@ -4,6 +4,7 @@
 #include <debug.h>
 #include <list.h>
 #include <stdint.h>
+#include "synch.h"
 
 // 邱维东的修改
 #ifndef USERPROG
@@ -108,6 +109,8 @@ struct thread
     unsigned magic;                     /* Detects stack overflow. */
     // 邱维东的修改  
     int ret; // 用于表示返回值
+    struct semaphore wait_for_child;
+    struct thread * parent;
   };
 
 /* If false (default), use round-robin scheduler.
