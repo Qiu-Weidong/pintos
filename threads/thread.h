@@ -111,6 +111,9 @@ struct thread
     int ret; // 用于表示返回值
     struct semaphore wait_for_child;
     struct thread * parent;
+    struct list files; // 打开的文件列表
+
+    // Todo 打开的文件列表
   };
 
 /* If false (default), use round-robin scheduler.

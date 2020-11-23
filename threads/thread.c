@@ -467,6 +467,7 @@ init_thread (struct thread *t, const char *name, int priority)
   // 邱维东的修改
   t->parent = running_thread();
   sema_init(&t->wait_for_child,0);
+  list_init(&t->files);
 
   old_level = intr_disable ();
   list_push_back (&all_list, &t->allelem);

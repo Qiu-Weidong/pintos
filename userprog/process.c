@@ -508,15 +508,15 @@ setup_stack(void **esp, char *file_name)
   memset(*esp,0,sizeof(void *));
 
 
-  printf("(args) begin\n");
-  int ret = *((int *)(*esp));
-  argc = *((int *)((*esp)+4));
-  char ** agv = *((char ***)((*esp)+8));
-  printf("(args) argc = %d\n",argc);
-  for(int i=0;i<argc;i++)
-    printf("(args) argv[%d] = \'%s\'\n",i,*(agv+i));
-  printf("(args) argv[%d] = null\n",argc);
-  printf("(args) end\n");
+  // printf("(args) begin\n");
+  // int ret = *((int *)(*esp));
+  // argc = *((int *)((*esp)+4));
+  // char ** agv = *((char ***)((*esp)+8));
+  // printf("(args) argc = %d\n",argc);
+  // for(int i=0;i<argc;i++)
+  //   printf("(args) argv[%d] = \'%s\'\n",i,*(agv+i));
+  // printf("(args) argv[%d] = null\n",argc);
+  // printf("(args) end\n");
 
   return success;
 }

@@ -2,9 +2,18 @@
 #define FILESYS_FILE_H
 
 #include "filesys/off_t.h"
-
+#include "lib/kernel/list.h"
+// typedef int bool;
 struct inode;
-
+struct file 
+  {
+    struct inode *inode;        /* File's inode. */
+    off_t pos;                  /* Current position. */
+    int deny_write;            /* Has file_deny_write() been called? */
+    // 邱维东的修改
+    int fd;// 添加一个文件描述符的属性
+    struct list_elem elem;
+  };
 /* Opening and closing files. */
 struct file *file_open (struct inode *);
 struct file *file_reopen (struct file *);
