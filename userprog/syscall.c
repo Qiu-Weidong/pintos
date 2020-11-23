@@ -43,11 +43,8 @@ void syscall_init(void)
 static void
 syscall_handler(struct intr_frame *f UNUSED)
 {
-  // printf ("system call!\n");
-  // thread_exit ();
-  if (!is_user_vaddr(f->esp))
+  if (f == NULL || !is_user_vaddr(f->esp))
     exit(-1);
-
   switch (*(int *)f->esp)
   {
   case SYS_HALT:
@@ -59,12 +56,15 @@ syscall_handler(struct intr_frame *f UNUSED)
   case SYS_EXIT:
   {
     // 实现系统调用void exit(int status); 貌似可以了
+    // 要检查参数是否在有效地址
+    if(!is_user_vaddr((int *)f->esp+1)) exit(-1);
     int status = *((int *)f->esp + 1);
     exit(status);
     break;
   }
   case SYS_EXEC:
   {
+    if(!is_user_vaddr((int *)f->esp+1)) exit(-1);
     char *file_name = (char *)(*((int *)f->esp + 1));
     f->eax = exec(file_name);
     break;
@@ -72,6 +72,7 @@ syscall_handler(struct intr_frame *f UNUSED)
   case SYS_WAIT:
   {
     // pid_t就是int
+    if(!is_user_vaddr((int *)f->esp+1)) exit(-1);
     pid_t pid = *((int *)f->esp + 1);
     f->eax = wait(pid);
     break;
@@ -79,6 +80,7 @@ syscall_handler(struct intr_frame *f UNUSED)
 
   case SYS_CREATE:
   {
+    if(!is_user_vaddr((int *)f->esp+1) || !is_user_vaddr((int *)f->esp+2)) exit(-1);
     char *file = (char *)(*((int *)f->esp + 1));
     unsigned int initial_size = *((int *)f->esp + 2);
     f->eax = create(file, initial_size);
@@ -86,24 +88,28 @@ syscall_handler(struct intr_frame *f UNUSED)
   }
   case SYS_REMOVE:
   {
+    if(!is_user_vaddr((int *)f->esp+1)) exit(-1);
     char *file = (char *)(*((int *)f->esp + 1));
     f->eax = remove(file);
     break;
   }
   case SYS_OPEN:
   {
+    if(!is_user_vaddr((int *)f->esp+1)) exit(-1);
     char *file = (char *)(*((int *)f->esp + 1));
     f->eax = open(file);
     break;
   }
   case SYS_FILESIZE:
   {
+    if(!is_user_vaddr((int *)f->esp+1)) exit(-1);
     int fd = *((int *)f->esp + 1);
     f->eax = filesize(fd);
     break;
   }
   case SYS_READ:
   {
+    if(!is_user_vaddr((int *)f->esp+1)||!is_user_vaddr((int *)f->esp+2)||!is_user_vaddr((int *)f->esp+3)) exit(-1);
     int fd = *((int *)f->esp + 1);
     void *buffer = (void *)(*((int *)f->esp + 2));
     unsigned int length = *((unsigned *)f->esp + 3);
@@ -112,6 +118,7 @@ syscall_handler(struct intr_frame *f UNUSED)
   }
   case SYS_WRITE:
   {
+    if(!is_user_vaddr((int *)f->esp+1)||!is_user_vaddr((int *)f->esp+2)||!is_user_vaddr((int *)f->esp+3)) exit(-1);
     int fd = *((int *)f->esp + 1);
     void *buffer = (void *)(*((int *)f->esp + 2));
     unsigned size = *((unsigned *)f->esp + 3);
@@ -122,6 +129,7 @@ syscall_handler(struct intr_frame *f UNUSED)
   }
   case SYS_SEEK:
   {
+    if(!is_user_vaddr((int *)f->esp+1)||!is_user_vaddr((int *)f->esp+2)) exit(-1);
     int fd = *((int *)f->esp + 1);
     unsigned int position = *((int *)f->esp + 2);
     seek(fd, position);
@@ -129,12 +137,14 @@ syscall_handler(struct intr_frame *f UNUSED)
   }
   case SYS_TELL:
   {
+    if(!is_user_vaddr((int *)f->esp+1)) exit(-1);
     int fd = *((int *)f->esp + 1);
     f->eax = tell(fd);
     break;
   }
   case SYS_CLOSE:
   {
+    if(!is_user_vaddr((int *)f->esp+1)) exit(-1);
     int fd = *((int *)f->esp + 1);
     close(fd);
     break;
@@ -153,13 +163,14 @@ void halt(void)
 void exit(int status)
 {
   // 设置退出状态，然后退出
+  // printf("... exit_status:%d\n",status);
   struct thread *cur = thread_current();
   cur->ret = status;
   thread_exit();
 }
 pid_t exec(const char *file)
 {
-  // printf("exec:%s\n", file);
+  if(file == NULL || !is_user_vaddr(file)) return TID_ERROR;
   return process_execute(file);
 }
 int wait(pid_t pid)
@@ -170,7 +181,7 @@ int wait(pid_t pid)
 bool create(const char *file, unsigned initial_size)
 {
   // 直接使用filesys_create函数创建文件
-  if(file == NULL||!is_user_vaddr(file)) return false;
+  if(file == NULL||!is_user_vaddr(file)) exit(-1);
   return filesys_create(file, initial_size);
 }
 bool remove(const char *file)
@@ -195,6 +206,7 @@ int filesize(int fd)
 }
 int read(int fd, void *buffer, unsigned length)
 {
+  if(buffer == NULL || !is_user_vaddr(buffer)) return 0;
   if (fd == STDIN_FILENO)
   {
     for(int i=0;i<length;i++)
@@ -212,6 +224,7 @@ int read(int fd, void *buffer, unsigned length)
 }
 int write(int fd, const void *buffer, unsigned length)
 {
+  if(buffer == NULL || !is_user_vaddr(buffer)) return 0;
   if (fd == STDOUT_FILENO) // 如果输出到终端
   {
     // 直接使用putbuf即可输出
