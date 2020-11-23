@@ -43,7 +43,7 @@ void syscall_init(void)
 static void
 syscall_handler(struct intr_frame *f UNUSED)
 {
-  if (f == NULL || !is_user_vaddr(f->esp))
+  if (f == NULL || !is_user_vaddr(f->esp) || !is_user_vaddr(f->esp+3) || (int)f->esp % 4 != 0)
     exit(-1);
   switch (*(int *)f->esp)
   {
