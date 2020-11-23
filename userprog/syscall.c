@@ -30,6 +30,8 @@ getFile(int fd)
       return ret;
     }
   }
+  // 没找到，直接终止
+  exit(-1);
   return NULL;
 }
 
@@ -146,7 +148,7 @@ syscall_handler(struct intr_frame *f UNUSED)
 void halt(void)
 {
   // 直接断电就好
-  shutdown();
+  shutdown_power_off();
 }
 void exit(int status)
 {
@@ -167,45 +169,32 @@ int wait(pid_t pid)
 }
 bool create(const char *file, unsigned initial_size)
 {
-  // printf("create:%s %d\n", file, initial_size);
+  // 直接使用filesys_create函数创建文件
+  if(file == NULL||!is_user_vaddr(file)) return false;
   return filesys_create(file, initial_size);
 }
 bool remove(const char *file)
 {
-  // printf("remove %s\n",file);
+  // 直接使用filesys_remove删除文件，删除文件后，打开的文件不会被关闭
   return filesys_remove(file);
 }
 int open(const char *file)
 {
-  // printf("open : %s\n", file);
   static int next_fd = 2;
   struct file *f = filesys_open(file);
   if (f == NULL)
     return -1;
-  f->fd = next_fd++;
-  list_push_back(&thread_current()->files, &f->elem);
+  f->fd = next_fd++; // 为打开的文件分配文件描述符
+  list_push_back(&thread_current()->files, &f->elem);// 将打开的文件添加到当前线程的文件列表当中
   return f->fd;
 }
 int filesize(int fd)
 {
-  // printf("filesize:%d\n", fd);
-  struct list_elem *l;
-  struct list files = thread_current()->files;
-  struct file *dest = NULL;
-  for (l = list_begin(&thread_current()->files); l != list_end(&thread_current()->files); l = list_next(l))
-  {
-    struct file *file = list_entry(l, struct file, elem);
-    if (file->fd == fd)
-    {
-      dest = file;
-      break;
-    }
-  }
-  return file_length(dest);
+  struct file * f = getFile(fd);
+  return file_length(f);
 }
 int read(int fd, void *buffer, unsigned length)
 {
-  // printf("read:%d %d\n", fd, length);
   if (fd == STDIN_FILENO)
   {
     for(int i=0;i<length;i++)
