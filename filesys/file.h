@@ -10,10 +10,20 @@ struct file
     struct inode *inode;        /* File's inode. */
     off_t pos;                  /* Current position. */
     int deny_write;            /* Has file_deny_write() been called? */
+    // 取消这样的修改，可能导致访问内核内存
     // 邱维东的修改
-    int fd;// 添加一个文件描述符的属性
-    struct list_elem elem;
+    // int fd;// 添加一个文件描述符的属性
+    // struct list_elem elem;
   };
+/*
+ * 定义一个文件描述符的结构
+*/
+struct file_descriptor
+{
+   int fd;
+   struct file * f;
+   struct list_elem elem;
+};
 /* Opening and closing files. */
 struct file *file_open (struct inode *);
 struct file *file_reopen (struct file *);

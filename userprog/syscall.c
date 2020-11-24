@@ -13,26 +13,31 @@
 #include "process.h"
 #include "lib/string.h"
 #include "devices/input.h"
+#include "userprog/pagedir.h"
+#include "threads/malloc.h"
 
 static void syscall_handler(struct intr_frame *);
 
-// 查找file的辅助函数
-struct file *
+// 查找file的辅助函数,返回一个文件描述符结构体的指针
+struct file_descriptor *
 getFile(int fd)
 {
   struct list_elem *l;
-  struct file *ret = NULL;
   for (l = list_begin(&thread_current()->files); l != list_end(&thread_current()->files); l = list_next(l))
   {
-    struct file *file = list_entry(l, struct file, elem);
-    if (file->fd == fd)
+    struct file_descriptor *f = list_entry(l, struct file_descriptor, elem);
+    if (f->fd == fd)
     {
-      return ret;
+      return f;
     }
   }
-  // 没找到，直接终止
-  exit(-1);
   return NULL;
+}
+
+bool address_valid(void * vaddr)
+{
+  return is_user_vaddr(vaddr) && !is_kernel_vaddr(vaddr)
+    && pagedir_get_page(thread_current()->pagedir,vaddr)!=NULL;
 }
 
 void syscall_init(void)
@@ -43,36 +48,40 @@ void syscall_init(void)
 static void
 syscall_handler(struct intr_frame *f UNUSED)
 {
-  if (f == NULL || !is_user_vaddr(f->esp) || !is_user_vaddr(f->esp+3) || (int)f->esp % 4 != 0)
-    exit(-1);
+  if(f == NULL || !address_valid(f->esp) || !address_valid(f->esp+3)) exit(-1);
   switch (*(int *)f->esp)
   {
   case SYS_HALT:
   {
     // 实现系统调用halt,已经通过
+    // printf("...halt\n");
     halt();
     break;
   }
   case SYS_EXIT:
   {
+    // printf("...exit\n");
     // 实现系统调用void exit(int status); 貌似可以了
     // 要检查参数是否在有效地址
-    if(!is_user_vaddr((int *)f->esp+1)) exit(-1);
+    if(!address_valid((int *)f->esp+1)) exit(-1);
     int status = *((int *)f->esp + 1);
     exit(status);
     break;
   }
   case SYS_EXEC:
   {
-    if(!is_user_vaddr((int *)f->esp+1)) exit(-1);
+    // printf("...exec\n");
+    if(!address_valid((int *)f->esp+1)) exit(-1);
     char *file_name = (char *)(*((int *)f->esp + 1));
+    if(!address_valid(file_name)) exit(-1);
     f->eax = exec(file_name);
     break;
   }
   case SYS_WAIT:
   {
+    // printf("...wait\n");
     // pid_t就是int
-    if(!is_user_vaddr((int *)f->esp+1)) exit(-1);
+    if(!address_valid((int *)f->esp+1)) exit(-1);
     pid_t pid = *((int *)f->esp + 1);
     f->eax = wait(pid);
     break;
@@ -80,47 +89,58 @@ syscall_handler(struct intr_frame *f UNUSED)
 
   case SYS_CREATE:
   {
-    if(!is_user_vaddr((int *)f->esp+1) || !is_user_vaddr((int *)f->esp+2)) exit(-1);
+    // printf("...create\n");
+    if(!address_valid((int *)f->esp+1) || !address_valid((int *)f->esp+2)) exit(-1);
     char *file = (char *)(*((int *)f->esp + 1));
+    if(!address_valid(file)) exit(-1);
     unsigned int initial_size = *((int *)f->esp + 2);
     f->eax = create(file, initial_size);
     break;
   }
   case SYS_REMOVE:
   {
-    if(!is_user_vaddr((int *)f->esp+1)) exit(-1);
+    // printf("...remove\n");
+    if(!address_valid((int *)f->esp+1)) exit(-1);
     char *file = (char *)(*((int *)f->esp + 1));
+    if(!address_valid(file)) exit(-1);
     f->eax = remove(file);
     break;
   }
   case SYS_OPEN:
   {
-    if(!is_user_vaddr((int *)f->esp+1)) exit(-1);
+    // printf("...open\n");
+    if(!address_valid((int *)f->esp+1)) exit(-1);
     char *file = (char *)(*((int *)f->esp + 1));
+    if(!address_valid(file)) exit(-1);
     f->eax = open(file);
     break;
   }
   case SYS_FILESIZE:
   {
-    if(!is_user_vaddr((int *)f->esp+1)) exit(-1);
+    // printf("...filesize\n");
+    if(!address_valid((int *)f->esp+1)) exit(-1);
     int fd = *((int *)f->esp + 1);
     f->eax = filesize(fd);
     break;
   }
   case SYS_READ:
   {
-    if(!is_user_vaddr((int *)f->esp+1)||!is_user_vaddr((int *)f->esp+2)||!is_user_vaddr((int *)f->esp+3)) exit(-1);
+    // printf("...read\n");
+    if(!address_valid((int *)f->esp+1)||!address_valid((int *)f->esp+2)||!address_valid((int *)f->esp+3)) exit(-1);
     int fd = *((int *)f->esp + 1);
     void *buffer = (void *)(*((int *)f->esp + 2));
+    if(!address_valid(buffer)) exit(-1);
     unsigned int length = *((unsigned *)f->esp + 3);
     f->eax = read(fd, buffer, length);
     break;
   }
   case SYS_WRITE:
   {
-    if(!is_user_vaddr((int *)f->esp+1)||!is_user_vaddr((int *)f->esp+2)||!is_user_vaddr((int *)f->esp+3)) exit(-1);
+    // printf("...write\n");
+    if(!address_valid((int *)f->esp+1)||!address_valid((int *)f->esp+2)||!address_valid((int *)f->esp+3)) exit(-1);
     int fd = *((int *)f->esp + 1);
     void *buffer = (void *)(*((int *)f->esp + 2));
+    if(!address_valid(buffer)) exit(-1);
     unsigned size = *((unsigned *)f->esp + 3);
     // 运行你编写的系统调用函数。
     // 一旦系统调用要返回一个值，将它保存在eax中
@@ -129,7 +149,8 @@ syscall_handler(struct intr_frame *f UNUSED)
   }
   case SYS_SEEK:
   {
-    if(!is_user_vaddr((int *)f->esp+1)||!is_user_vaddr((int *)f->esp+2)) exit(-1);
+    // printf("...seek\n");
+    if(!address_valid((int *)f->esp+1)||!address_valid((int *)f->esp+2)) exit(-1);
     int fd = *((int *)f->esp + 1);
     unsigned int position = *((int *)f->esp + 2);
     seek(fd, position);
@@ -137,20 +158,22 @@ syscall_handler(struct intr_frame *f UNUSED)
   }
   case SYS_TELL:
   {
-    if(!is_user_vaddr((int *)f->esp+1)) exit(-1);
+    // printf("...tell\n");
+    if(!address_valid((int *)f->esp+1)) exit(-1);
     int fd = *((int *)f->esp + 1);
     f->eax = tell(fd);
     break;
   }
   case SYS_CLOSE:
   {
-    if(!is_user_vaddr((int *)f->esp+1)) exit(-1);
+    // printf("...close\n");
+    if(!address_valid((int *)f->esp+1)) exit(-1);
     int fd = *((int *)f->esp + 1);
     close(fd);
     break;
   }
   default:
-    printf("other!\n");
+    // printf("other!\n");
     break;
   }
 }
@@ -191,22 +214,26 @@ bool remove(const char *file)
 }
 int open(const char *file)
 {
+  if(file == NULL || !is_user_vaddr(file)) exit(-1);
   static int next_fd = 2;
   struct file *f = filesys_open(file);
   if (f == NULL)
-    return -1;
-  f->fd = next_fd++; // 为打开的文件分配文件描述符
-  list_push_back(&thread_current()->files, &f->elem);// 将打开的文件添加到当前线程的文件列表当中
-  return f->fd;
+    return  -1;
+  struct file_descriptor * descriptor = calloc(1,sizeof(struct file_descriptor));
+  descriptor->fd = next_fd++; // 为打开的文件分配文件描述符
+  descriptor->f = f;
+  list_push_back(&thread_current()->files, &descriptor->elem);// 将打开的文件添加到当前线程的文件列表当中
+  return descriptor->fd;
 }
 int filesize(int fd)
 {
-  struct file * f = getFile(fd);
-  return file_length(f);
+  struct file_descriptor * descriptor = getFile(fd);
+  if(descriptor == NULL) exit(-1);
+  return file_length(descriptor->f);
 }
 int read(int fd, void *buffer, unsigned length)
 {
-  if(buffer == NULL || !is_user_vaddr(buffer)) return 0;
+  if(buffer == NULL || !is_user_vaddr(buffer)) return -1;
   if (fd == STDIN_FILENO)
   {
     for(int i=0;i<length;i++)
@@ -218,8 +245,9 @@ int read(int fd, void *buffer, unsigned length)
   }
   else
   {
-    struct file *f = getFile(fd);
-    return (int)file_read(f, buffer, length);
+    struct file_descriptor *descriptor = getFile(fd);
+    if(descriptor == NULL) return  -1;
+    return (int)file_read(descriptor->f, buffer, length);
   }
 }
 int write(int fd, const void *buffer, unsigned length)
@@ -234,26 +262,33 @@ int write(int fd, const void *buffer, unsigned length)
   else
   {
     // printf("write:%d %d\n", fd, length);
-    struct file *f = getFile(fd);
-    return (int)file_write(f, buffer, length);
+    struct file_descriptor *descriptor = getFile(fd);
+    if(descriptor == NULL) return 0;
+    return (int)file_write(descriptor->f, buffer, length);
   }
 }
 void seek(int fd, unsigned position)
 {
   // printf("seek:%d %d\n", fd, position);
-  struct file *f = getFile(fd);
-  file_seek(f, position);
+  struct file_descriptor *descriptor = getFile(fd);
+  if(descriptor == NULL) return ;
+  file_seek(descriptor->f, position);
 }
 unsigned tell(int fd)
 {
-  // printf("tell:%d\n", fd);
-  struct file *f = getFile(fd);
-  return file_tell(f);
+  struct file_descriptor *descriptor = getFile(fd);
+  if(descriptor == NULL) return 0;
+  return file_tell(descriptor->f);
 }
+
 void close(int fd)
 {
-  // printf("close:%d\n", fd);
-  struct file * f = getFile(fd);
-  file_close(f);
-  list_remove(&f->elem);
+  struct file_descriptor * descriptor = getFile(fd);
+  if(descriptor == NULL) return;
+  file_close(descriptor->f);
+  // 使用list_remove崩溃的原因，elem->prev是一个kernel地址，
+  // 对它解引用elem->prev->next会导致崩溃
+  if(descriptor != NULL)
+    list_remove(&descriptor->elem);
+  free(descriptor);
 }
