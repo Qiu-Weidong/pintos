@@ -44,6 +44,7 @@ tid_t process_execute(const char *file_name)
   exec_name = strtok_r(file_name, " ", &save_ptr);
 
   /* Create a new thread to execute FILE_NAME. */
+  // 还没有加载可执行文件，加载在start_process中完成
   tid = thread_create(exec_name, PRI_DEFAULT, start_process, fn_copy);
   // 邱维东的修改结束
   if (tid == TID_ERROR)
@@ -59,7 +60,6 @@ start_process(void *file_name_)
   char *file_name = file_name_;
   struct intr_frame if_;
   bool success;
-
   /* Initialize interrupt frame and load executable. */
   memset(&if_, 0, sizeof if_);
   if_.gs = if_.fs = if_.es = if_.ds = if_.ss = SEL_UDSEG;
@@ -71,7 +71,6 @@ start_process(void *file_name_)
   palloc_free_page(file_name);
   if (!success)
     thread_exit();
-
   
 
   /* Start the user process by simulating a return from an
@@ -323,7 +322,7 @@ bool load(const char *file_name, void (**eip)(void), void **esp)
       break;
     }
   }
-  // printf("before setup_stack!\n");
+  // sema_up(&thread_current()->parent->wait_for_child);
   /* Set up stack. */
   if (!setup_stack(esp, file_name))
     goto done;

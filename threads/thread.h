@@ -112,6 +112,7 @@ struct thread
     struct semaphore wait_for_child;
     struct thread * parent;
     struct list files; // 打开的文件列表
+    struct list children; // 子线程列表
 
     // Todo 打开的文件列表
   };

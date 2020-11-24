@@ -468,7 +468,9 @@ init_thread (struct thread *t, const char *name, int priority)
   t->parent = running_thread();
   sema_init(&t->wait_for_child,0);
   list_init(&t->files);
-
+  list_init(&t->children);
+  if(t->parent != NULL)
+    list_push_back(&t->parent->children,&t->elem);
   old_level = intr_disable ();
   list_push_back (&all_list, &t->allelem);
   intr_set_level (old_level);

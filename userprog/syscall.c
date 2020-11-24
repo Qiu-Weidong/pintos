@@ -190,11 +190,24 @@ void exit(int status)
   struct thread *cur = thread_current();
   cur->ret = status;
   thread_exit();
+  // process_exit();
 }
+/*
+ * 运行名称为cmd_line的可执行文件，并传递所有给定的参数，并返回新进程的程序ID（pid）。 
+ * 如果程序由于任何原因无法加载或运行，则必须返回pid -1，否则不应为有效pid。 
+ * 因此，父进程无法从exec返回，直到它知道子进程是否成功加载了其可执行文件。 
+ * 您必须使用适当的同步来确保这一点
+*/
 pid_t exec(const char *file)
 {
+  // printf("...exec\n");
   if(file == NULL || !is_user_vaddr(file)) return TID_ERROR;
-  return process_execute(file);
+  tid_t tid = process_execute(file);
+  if(tid == TID_ERROR) return TID_ERROR;
+  // 不能返回，要等待子线程加载完成
+  // 等待
+  // sema_down(&thread_current()->wait_for_child);
+  return tid;
 }
 int wait(pid_t pid)
 {
