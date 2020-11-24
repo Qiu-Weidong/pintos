@@ -31,17 +31,24 @@ tid_t process_execute(const char *file_name)
 {
   char *fn_copy;
   tid_t tid;
-
+  // printf("...process_execute\n");
   /* Make a copy of FILE_NAME.
      Otherwise there's a race between the caller and load(). */
   fn_copy = palloc_get_page(0);
+  // fn_copy2 = palloc_get_page(0);
   if (fn_copy == NULL)
     return TID_ERROR;
+  // printf("...fuck\n");
   strlcpy(fn_copy, file_name, PGSIZE);
-
+  // printf("...shit\n");
+  char buffer[256];
+  strlcpy(buffer,file_name,strlen(file_name)+1);
+  // printf("...hahaha\n");
   // 邱维东的修改
   char *exec_name, *save_ptr = NULL;
-  exec_name = strtok_r(file_name, " ", &save_ptr);
+  
+  exec_name = strtok_r(buffer, " ", &save_ptr);
+  // printf("...fuck\n");
 
   /* Create a new thread to execute FILE_NAME. */
   // 还没有加载可执行文件，加载在start_process中完成
