@@ -70,7 +70,17 @@ static void *alloc_frame (struct thread *, size_t size);
 static void schedule (void);
 void thread_schedule_tail (struct thread *prev);
 static tid_t allocate_tid (void);
-
+struct thread * 
+getThread(tid_t tid)
+{
+  struct list_elem * l = NULL;
+  for(l = list_begin(&all_list);l!=list_end(&all_list);l=list_next(l))
+  {
+    struct thread * t = list_entry(l,struct thread,elem);
+    if(t->tid == tid) return t;
+  }
+  return NULL;
+}
 /* Initializes the threading system by transforming the code
    that's currently running into a thread.  This can't work in
    general and it is possible in this case only because loader.S

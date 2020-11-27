@@ -112,7 +112,7 @@ struct thread
     struct semaphore wait_for_child;
     struct thread * parent;
     struct list files; // 打开的文件列表
-    struct list children; // 子线程列表
+    struct list children; // 子线程列表,列表元素不是thread结构，而是thread_inf结构
 
     // Todo 打开的文件列表
   };
@@ -153,4 +153,5 @@ void thread_set_nice (int);
 int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
 
+struct thread * getThread(tid_t tid);
 #endif /* threads/thread.h */
