@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+// #include <assert.h>
 #include "userprog/gdt.h"
 #include "userprog/pagedir.h"
 #include "userprog/tss.h"
@@ -18,6 +19,7 @@
 #include "threads/thread.h"
 #include "threads/vaddr.h"
 #include "threads/synch.h"
+
 // 邱维东的修改
 #define MAX_ARGV 256
 static thread_func start_process NO_RETURN;
@@ -31,31 +33,42 @@ tid_t process_execute(const char *file_name)
 {
   char *fn_copy;
   tid_t tid;
-  // printf("...process_execute\n");
   /* Make a copy of FILE_NAME.
      Otherwise there's a race between the caller and load(). */
   fn_copy = palloc_get_page(0);
-  // fn_copy2 = palloc_get_page(0);
   if (fn_copy == NULL)
     return TID_ERROR;
-  // printf("...fuck\n");
   strlcpy(fn_copy, file_name, PGSIZE);
-  // printf("...shit\n");
   char buffer[256];
   strlcpy(buffer,file_name,strlen(file_name)+1);
-  // printf("...hahaha\n");
   // 邱维东的修改
   char *exec_name, *save_ptr = NULL;
   
   exec_name = strtok_r(buffer, " ", &save_ptr);
-  // printf("...fuck\n");
 
   /* Create a new thread to execute FILE_NAME. */
   // 还没有加载可执行文件，加载在start_process中完成
+  struct file * f = filesys_open(exec_name);
+  if(f == NULL) return -1;
+  else file_close(f);
+
   tid = thread_create(exec_name, PRI_DEFAULT, start_process, fn_copy);
   // 邱维东的修改结束
   if (tid == TID_ERROR)
     palloc_free_page(fn_copy);
+  struct thread * t = getThread(tid);
+  ASSERT(t != NULL);
+
+  // 将子线程加入列表
+  struct thread_entity * te = (struct thread_entity *)calloc(1,sizeof(struct thread_entity));
+  te->tid = t->tid;
+  te->be_waited = false;
+  te->is_exited = false;
+  te->exit_code = 0;
+  sema_init(&te->wait,0);
+  list_push_back(&thread_current()->children,&te->elem);
+  // 子线程可以开始了
+  sema_up(&t->wait_for_child);
   return tid;
 }
 
@@ -64,6 +77,8 @@ tid_t process_execute(const char *file_name)
 static void
 start_process(void *file_name_)
 {
+  // 父线程准备好了子线程才能开始
+  sema_down(&thread_current()->wait_for_child);
   char *file_name = file_name_;
   struct intr_frame if_;
   bool success;
@@ -77,8 +92,9 @@ start_process(void *file_name_)
   /* If load failed, quit. */
   palloc_free_page(file_name);
   if (!success)
+  {
     thread_exit();
-  
+  }
 
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in
@@ -104,14 +120,24 @@ start_process(void *file_name_)
    does nothing. */
 int process_wait(tid_t child_tid UNUSED)
 {
-  // 邱维东的修改
-  // while (1)
-  // {
-  //   thread_yield();
-  // }
-  // // 邱维东的修改结束
-  // return -1;
-  sema_down(&thread_current()->wait_for_child);
+  // sema_down(&thread_current()->wait_for_child);
+  // 首先在children中查找child_tid对应的线程
+  struct list_elem * le = NULL;
+  struct thread_entity * te = NULL;
+  for(le=list_begin(&thread_current()->children);le!=list_end(&thread_current()->children);le=list_next(le))
+  {
+    struct thread_entity * tmp = list_entry(le,struct thread_entity,elem);
+    if(tmp->tid == child_tid) {
+      te = tmp;
+      break;
+    }
+  }
+  
+  if(te == NULL || te->be_waited) return -1;
+  te->be_waited = true;
+  if(te->is_exited) return te->exit_code;
+  sema_down(&te->wait);
+  return te->exit_code;
 }
 
 /* Free the current process's resources. */
@@ -137,8 +163,25 @@ void process_exit(void)
     pagedir_destroy(pd);
     // 邱维东的修改
     printf("%s: exit(%d)\n", cur->name, cur->ret);
+    struct list * l = &cur->parent->children;
+    struct list_elem * le = NULL;
+    struct thread_entity * te = NULL;
+    for(le = list_begin(l);le!=list_end(l);le=list_next(le))
+    {
+      struct thread_entity * tmp = list_entry(le,struct thread_entity,elem);
+      if(tmp->tid == cur->tid) {
+        te = tmp;
+        break;
+      }
+    }
+    if(te != NULL)
+    {
+      te->is_exited = true;
+      te->exit_code = cur->ret;
+      if(te->be_waited) sema_up(&te->wait);
+    }
   }
-  sema_up(&thread_current()->parent->wait_for_child);
+  // sema_up(&thread_current()->parent->wait_for_child);
 }
 
 /* Sets up the CPU for running user code in the current
@@ -255,6 +298,7 @@ bool load(const char *file_name, void (**eip)(void), void **esp)
   // printf("end load file!\n");
   if (file == NULL)
   {
+    // exit(-1);
     printf("load: %s: open failed\n", exec_name);
     goto done;
   }
@@ -268,6 +312,7 @@ bool load(const char *file_name, void (**eip)(void), void **esp)
       || ehdr.e_phentsize != sizeof(struct Elf32_Phdr) 
       || ehdr.e_phnum > 1024)
   {
+    // exit(-1);
     printf("load: %s: error loading executable\n", file_name);
     goto done;
   }

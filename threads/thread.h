@@ -113,10 +113,16 @@ struct thread
     struct thread * parent;
     struct list files; // 打开的文件列表
     struct list children; // 子线程列表,列表元素不是thread结构，而是thread_inf结构
-
-    // Todo 打开的文件列表
   };
-
+struct thread_entity
+{
+   tid_t tid;
+   int exit_code;
+   bool be_waited;
+   bool is_exited;
+   struct semaphore wait;
+   struct list_elem elem;
+};
 /* If false (default), use round-robin scheduler.
    If true, use multi-level feedback queue scheduler.
    Controlled by kernel command-line option "-o mlfqs". */
