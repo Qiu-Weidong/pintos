@@ -17,7 +17,9 @@
 #include "threads/malloc.h"
 
 static void syscall_handler(struct intr_frame *);
-
+// 定义两个锁
+struct lock std_in;
+struct lock std_out;
 // 查找file的辅助函数,返回一个文件描述符结构体的指针
 struct file_descriptor *
 getFile(int fd)
@@ -49,6 +51,8 @@ bool string_valid(char * vaddr)
 
 void syscall_init(void)
 {
+  lock_init(&std_in);
+  lock_init(&std_out);
   intr_register_int(0x30, 3, INTR_ON, syscall_handler, "syscall");
 }
 
@@ -244,6 +248,8 @@ int open(const char *file)
   struct file_descriptor * descriptor = calloc(1,sizeof(struct file_descriptor));
   descriptor->fd = next_fd++; // 为打开的文件分配文件描述符
   descriptor->f = f;
+  lock_init(&descriptor->in);
+  lock_init(&descriptor->out);
   list_push_back(&thread_current()->files, &descriptor->elem);// 将打开的文件添加到当前线程的文件列表当中
   return descriptor->fd;
 }
@@ -258,18 +264,23 @@ int read(int fd, void *buffer, unsigned length)
   if(buffer == NULL || !is_user_vaddr(buffer)) return -1;
   if (fd == STDIN_FILENO)
   {
+    lock_acquire(&std_in);
     for(int i=0;i<length;i++)
     {
       char c = input_getc();
       memcpy(buffer+i,&c,sizeof(char));
-      return length;
     }
+    lock_release(&std_in);
+    return length;
   }
   else
   {
     struct file_descriptor *descriptor = getFile(fd);
     if(descriptor == NULL) return  -1;
-    return (int)file_read(descriptor->f, buffer, length);
+    lock_acquire(&descriptor->in);
+    int ret = (int)file_read(descriptor->f, buffer, length);
+    lock_release(&descriptor->in);
+    return ret;
   }
 }
 int write(int fd, const void *buffer, unsigned length)
@@ -278,7 +289,11 @@ int write(int fd, const void *buffer, unsigned length)
   if (fd == STDOUT_FILENO) // 如果输出到终端
   {
     // 直接使用putbuf即可输出
+    lock_acquire(&std_out);
+    lock_acquire(&std_in);
     putbuf(buffer, length);
+    lock_release(&std_in);
+    lock_release(&std_out);
     return length;
   }
   else
@@ -286,7 +301,12 @@ int write(int fd, const void *buffer, unsigned length)
     // printf("write:%d %d\n", fd, length);
     struct file_descriptor *descriptor = getFile(fd);
     if(descriptor == NULL) return 0;
-    return (int)file_write(descriptor->f, buffer, length);
+    lock_acquire(&descriptor->out);
+    lock_acquire(&descriptor->in);
+    int ret = (int)file_write(descriptor->f, buffer, length);
+    lock_release(&descriptor->in);
+    lock_release(&descriptor->out);
+    return ret;
   }
 }
 void seek(int fd, unsigned position)

@@ -113,6 +113,7 @@ struct thread
     struct thread * parent;
     struct list files; // 打开的文件列表
     struct list children; // 子线程列表,列表元素不是thread结构，而是thread_inf结构
+    struct file * self;
   };
 struct thread_entity
 {

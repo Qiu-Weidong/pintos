@@ -476,6 +476,7 @@ init_thread (struct thread *t, const char *name, int priority)
   t->magic = THREAD_MAGIC;
   // 邱维东的修改
   t->parent = running_thread();
+  t->self = NULL;
   sema_init(&t->wait_for_child,0);
   list_init(&t->files);
   list_init(&t->children);

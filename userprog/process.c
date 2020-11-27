@@ -95,7 +95,8 @@ start_process(void *file_name_)
   {
     thread_exit();
   }
-
+  // thread_current()->self = filesys_open();
+  // file_deny_write(thread_current()->self);
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in
      threads/intr-stubs.S).  Because intr_exit takes all of its
@@ -179,6 +180,10 @@ void process_exit(void)
       te->is_exited = true;
       te->exit_code = cur->ret;
       if(te->be_waited) sema_up(&te->wait);
+    }
+    if(cur->self != NULL) {
+      file_allow_write(cur->self);
+      file_close(cur->self);
     }
   }
   // sema_up(&thread_current()->parent->wait_for_child);
@@ -295,6 +300,7 @@ bool load(const char *file_name, void (**eip)(void), void **esp)
   // printf("begin load file!\n");
   /* Open executable file. */
   file = filesys_open(exec_name);
+  
   // printf("end load file!\n");
   if (file == NULL)
   {
@@ -302,7 +308,7 @@ bool load(const char *file_name, void (**eip)(void), void **esp)
     printf("load: %s: open failed\n", exec_name);
     goto done;
   }
-
+  
   /* Read and verify executable header. */
   if (file_read(file, &ehdr, sizeof ehdr) != sizeof ehdr 
       || memcmp(ehdr.e_ident, "\177ELF\1\1\1", 7) 
@@ -316,7 +322,6 @@ bool load(const char *file_name, void (**eip)(void), void **esp)
     printf("load: %s: error loading executable\n", file_name);
     goto done;
   }
-
   /* Read program headers. */
   file_ofs = ehdr.e_phoff;
   for (i = 0; i < ehdr.e_phnum; i++)
@@ -383,7 +388,10 @@ bool load(const char *file_name, void (**eip)(void), void **esp)
   *eip = (void (*)(void))ehdr.e_entry;
 
   success = true;
-
+  // 在这里保存可执行文件
+  // thread_current()->self = file;
+  thread_current()->self = filesys_open(exec_name);
+  file_deny_write(thread_current()->self);
 done:
   /* We arrive here whether the load is successful or not. */
   // printf("end setup_stack!\n");

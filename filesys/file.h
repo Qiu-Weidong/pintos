@@ -3,6 +3,7 @@
 
 #include "filesys/off_t.h"
 #include "lib/kernel/list.h"
+#include "threads/synch.h"
 // typedef int bool;
 struct inode;
 struct file 
@@ -22,6 +23,9 @@ struct file_descriptor
 {
    int fd;
    struct file * f;
+   // 加两个锁
+   struct lock in;
+   struct lock out;
    struct list_elem elem;
 };
 /* Opening and closing files. */
