@@ -5,7 +5,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-// #include <assert.h>
 #include "userprog/gdt.h"
 #include "userprog/pagedir.h"
 #include "userprog/tss.h"
@@ -61,6 +60,7 @@ tid_t process_execute(const char *file_name)
   struct thread *t = getThread(tid);
   ASSERT(t != NULL);
 
+  enum intr_level old_level = intr_disable();
   // 将子线程加入列表
   struct thread_entity *te = (struct thread_entity *)calloc(1, sizeof(struct thread_entity));
   te->tid = t->tid;
@@ -71,6 +71,7 @@ tid_t process_execute(const char *file_name)
   sema_init(&te->wait, 0);
   sema_init(&te->load, 0);
   list_push_back(&thread_current()->children, &te->elem);
+  intr_set_level(old_level);
   // 子线程可以开始了
   sema_up(&t->wait_for_child);
   sema_down(&te->load);
@@ -211,6 +212,22 @@ void process_exit(void)
     {
       file_allow_write(cur->self);
       file_close(cur->self);
+    }
+
+    // 关闭所有文件
+    while(!list_empty(&cur->files))
+    {
+      le = list_pop_back(&cur->files);
+      struct file_descriptor * fd = list_entry(le,struct file_descriptor,elem);
+      file_close(fd->f);
+      free(fd);
+    }
+    // 删除子线程
+    while(!list_empty(&cur->children))
+    {
+      le = list_pop_back(&cur->children);
+      te = list_entry(le,struct thread_entity,elem);
+      free(te);
     }
   }
   // sema_up(&thread_current()->parent->wait_for_child);
