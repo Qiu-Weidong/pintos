@@ -121,7 +121,9 @@ struct thread_entity
    int exit_code;
    bool be_waited;
    bool is_exited;
+   bool load_succes; // 是否加载成功
    struct semaphore wait;
+   struct semaphore load; // 用于加载的信号量
    struct list_elem elem;
 };
 /* If false (default), use round-robin scheduler.

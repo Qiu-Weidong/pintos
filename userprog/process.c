@@ -40,35 +40,41 @@ tid_t process_execute(const char *file_name)
     return TID_ERROR;
   strlcpy(fn_copy, file_name, PGSIZE);
   char buffer[256];
-  strlcpy(buffer,file_name,strlen(file_name)+1);
+  strlcpy(buffer, file_name, strlen(file_name) + 1);
   // 邱维东的修改
   char *exec_name, *save_ptr = NULL;
-  
+
   exec_name = strtok_r(buffer, " ", &save_ptr);
 
   /* Create a new thread to execute FILE_NAME. */
   // 还没有加载可执行文件，加载在start_process中完成
-  struct file * f = filesys_open(exec_name);
-  if(f == NULL) return -1;
-  else file_close(f);
+  // struct file *f = filesys_open(exec_name);
+  // if (f == NULL)
+  //   return -1;
+  // else
+  //   file_close(f);
 
   tid = thread_create(exec_name, PRI_DEFAULT, start_process, fn_copy);
   // 邱维东的修改结束
   if (tid == TID_ERROR)
     palloc_free_page(fn_copy);
-  struct thread * t = getThread(tid);
+  struct thread *t = getThread(tid);
   ASSERT(t != NULL);
 
   // 将子线程加入列表
-  struct thread_entity * te = (struct thread_entity *)calloc(1,sizeof(struct thread_entity));
+  struct thread_entity *te = (struct thread_entity *)calloc(1, sizeof(struct thread_entity));
   te->tid = t->tid;
   te->be_waited = false;
   te->is_exited = false;
   te->exit_code = 0;
-  sema_init(&te->wait,0);
-  list_push_back(&thread_current()->children,&te->elem);
+  te->load_succes = false;
+  sema_init(&te->wait, 0);
+  sema_init(&te->load, 0);
+  list_push_back(&thread_current()->children, &te->elem);
   // 子线程可以开始了
   sema_up(&t->wait_for_child);
+  sema_down(&te->load);
+  if(!te->load_succes) return -1;
   return tid;
 }
 
@@ -89,11 +95,26 @@ start_process(void *file_name_)
   if_.eflags = FLAG_IF | FLAG_MBS;
   success = load(file_name, &if_.eip, &if_.esp);
 
+  struct list *l = &thread_current()->parent->children;
+  struct list_elem *le = NULL;
+  struct thread_entity *te = NULL;
+  for (le = list_begin(l); le != list_end(l); le = list_next(le))
+  {
+    struct thread_entity *tmp = list_entry(le, struct thread_entity, elem);
+    if (tmp->tid == thread_current()->tid)
+    {
+      te = tmp;
+      break;
+    }
+  }
+  te->load_succes = success;
+  sema_up(&te->load);
   /* If load failed, quit. */
   palloc_free_page(file_name);
   if (!success)
   {
-    thread_exit();
+    // thread_exit();
+    exit(-1);
   }
   // thread_current()->self = filesys_open();
   // file_deny_write(thread_current()->self);
@@ -123,20 +144,23 @@ int process_wait(tid_t child_tid UNUSED)
 {
   // sema_down(&thread_current()->wait_for_child);
   // 首先在children中查找child_tid对应的线程
-  struct list_elem * le = NULL;
-  struct thread_entity * te = NULL;
-  for(le=list_begin(&thread_current()->children);le!=list_end(&thread_current()->children);le=list_next(le))
+  struct list_elem *le = NULL;
+  struct thread_entity *te = NULL;
+  for (le = list_begin(&thread_current()->children); le != list_end(&thread_current()->children); le = list_next(le))
   {
-    struct thread_entity * tmp = list_entry(le,struct thread_entity,elem);
-    if(tmp->tid == child_tid) {
+    struct thread_entity *tmp = list_entry(le, struct thread_entity, elem);
+    if (tmp->tid == child_tid)
+    {
       te = tmp;
       break;
     }
   }
-  
-  if(te == NULL || te->be_waited) return -1;
+
+  if (te == NULL || te->be_waited)
+    return -1;
   te->be_waited = true;
-  if(te->is_exited) return te->exit_code;
+  if (te->is_exited)
+    return te->exit_code;
   sema_down(&te->wait);
   return te->exit_code;
 }
@@ -164,24 +188,27 @@ void process_exit(void)
     pagedir_destroy(pd);
     // 邱维东的修改
     printf("%s: exit(%d)\n", cur->name, cur->ret);
-    struct list * l = &cur->parent->children;
-    struct list_elem * le = NULL;
-    struct thread_entity * te = NULL;
-    for(le = list_begin(l);le!=list_end(l);le=list_next(le))
+    struct list *l = &cur->parent->children;
+    struct list_elem *le = NULL;
+    struct thread_entity *te = NULL;
+    for (le = list_begin(l); le != list_end(l); le = list_next(le))
     {
-      struct thread_entity * tmp = list_entry(le,struct thread_entity,elem);
-      if(tmp->tid == cur->tid) {
+      struct thread_entity *tmp = list_entry(le, struct thread_entity, elem);
+      if (tmp->tid == cur->tid)
+      {
         te = tmp;
         break;
       }
     }
-    if(te != NULL)
+    if (te != NULL)
     {
       te->is_exited = true;
       te->exit_code = cur->ret;
-      if(te->be_waited) sema_up(&te->wait);
+      if (te->be_waited)
+        sema_up(&te->wait);
     }
-    if(cur->self != NULL) {
+    if (cur->self != NULL)
+    {
       file_allow_write(cur->self);
       file_close(cur->self);
     }
@@ -286,10 +313,10 @@ bool load(const char *file_name, void (**eip)(void), void **esp)
   bool success = false;
   int i;
 
-  char *exec_name,*save_ptr;
+  char *exec_name, *save_ptr;
   char fn_cpy[256];
-  strlcpy(fn_cpy,file_name,strlen(file_name)+1);
-  exec_name = strtok_r(fn_cpy," ",&save_ptr);
+  strlcpy(fn_cpy, file_name, strlen(file_name) + 1);
+  exec_name = strtok_r(fn_cpy, " ", &save_ptr);
 
   /* Allocate and activate page directory. */
   t->pagedir = pagedir_create();
@@ -300,7 +327,7 @@ bool load(const char *file_name, void (**eip)(void), void **esp)
   // printf("begin load file!\n");
   /* Open executable file. */
   file = filesys_open(exec_name);
-  
+
   // printf("end load file!\n");
   if (file == NULL)
   {
@@ -308,15 +335,9 @@ bool load(const char *file_name, void (**eip)(void), void **esp)
     printf("load: %s: open failed\n", exec_name);
     goto done;
   }
-  
+
   /* Read and verify executable header. */
-  if (file_read(file, &ehdr, sizeof ehdr) != sizeof ehdr 
-      || memcmp(ehdr.e_ident, "\177ELF\1\1\1", 7) 
-      || ehdr.e_type != 2 
-      || ehdr.e_machine != 3 
-      || ehdr.e_version != 1 
-      || ehdr.e_phentsize != sizeof(struct Elf32_Phdr) 
-      || ehdr.e_phnum > 1024)
+  if (file_read(file, &ehdr, sizeof ehdr) != sizeof ehdr || memcmp(ehdr.e_ident, "\177ELF\1\1\1", 7) || ehdr.e_type != 2 || ehdr.e_machine != 3 || ehdr.e_version != 1 || ehdr.e_phentsize != sizeof(struct Elf32_Phdr) || ehdr.e_phnum > 1024)
   {
     // exit(-1);
     printf("load: %s: error loading executable\n", file_name);
@@ -527,45 +548,45 @@ setup_stack(void **esp, char *file_name)
 
   // 邱维东的修改
   // 在这里设置参数
-  char * param, * save_ptr=NULL;
-  char * argv[MAX_ARGV];
+  char *param, *save_ptr = NULL;
+  char *argv[MAX_ARGV];
   int argc = 0;
-  param = strtok_r(file_name," ",&save_ptr);
-  
-  while(param != NULL)
+  param = strtok_r(file_name, " ", &save_ptr);
+
+  while (param != NULL)
   {
     // printf("param : %s\n",param);
-    int len = strlen(param)+1;
+    int len = strlen(param) + 1;
     *esp -= len;
-    memcpy(*esp,param,len);
+    memcpy(*esp, param, len);
     argv[argc++] = *esp;
-    param = strtok_r(NULL," ",&save_ptr);
+    param = strtok_r(NULL, " ", &save_ptr);
     // printf("param : %s\n",param);
   }
   // 4字节对其
-  while((int)(*esp)%4 != 0) *esp-=1;
+  while ((int)(*esp) % 4 != 0)
+    *esp -= 1;
   // printf("1\n");
   argv[argc] = NULL;
-  for(int i=argc;i>=0;i--)
+  for (int i = argc; i >= 0; i--)
   {
     *esp -= sizeof(char *);
-    memcpy(*esp,argv+i,sizeof(char *));
+    memcpy(*esp, argv + i, sizeof(char *));
   }
   // printf("2\n");
-  char ** tmp = (char **)*esp;
+  char **tmp = (char **)*esp;
   *esp -= sizeof(char **);
   // *(char **)(*esp) = *esp + sizeof(char **);
-  memcpy(*esp,&tmp,sizeof(char **));
+  memcpy(*esp, &tmp, sizeof(char **));
   // printf("3\n");
   // 设置argc
   *esp -= sizeof(int);
-  memcpy(*esp,&argc,sizeof(int));
+  memcpy(*esp, &argc, sizeof(int));
   // printf("4\n");
   // 设置返回地址0
   *esp -= sizeof(void *);
   // *(void **)(*esp) = NULL;
-  memset(*esp,0,sizeof(void *));
-
+  memset(*esp, 0, sizeof(void *));
 
   // printf("(args) begin\n");
   // int ret = *((int *)(*esp));

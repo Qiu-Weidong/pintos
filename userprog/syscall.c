@@ -217,9 +217,6 @@ pid_t exec(const char *file)
   if(file == NULL || !is_user_vaddr(file)) return TID_ERROR;
   tid_t tid = process_execute(file);
   if(tid == TID_ERROR) return TID_ERROR;
-  // 不能返回，要等待子线程加载完成
-  // 等待
-  // sema_down(&thread_current()->wait_for_child);
   return tid;
 }
 int wait(pid_t pid)
