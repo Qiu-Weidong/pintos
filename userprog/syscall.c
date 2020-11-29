@@ -59,21 +59,17 @@ void syscall_init(void)
 static void
 syscall_handler(struct intr_frame *f UNUSED)
 {
-  // printf("...syscall\n");
   if(f == NULL || !address_valid(f->esp) || !address_valid(f->esp+3)) exit(-1);
   switch (*(int *)f->esp)
   {
   case SYS_HALT:
   {
-    // 实现系统调用halt,已经通过
-    // printf("...SYS_CODE : SYS_HALT\n");
     halt();
     break;
   }
   case SYS_EXIT:
   {
-    // printf("...SYS_CODE : SYS_EXIT\n");
-    // 实现系统调用void exit(int status); 貌似可以了
+    // 实现系统调用void exit(int status); 可以了
     // 要检查参数是否在有效地址
     if(!address_valid((int *)f->esp+1)) exit(-1);
     int status = *((int *)f->esp + 1);
@@ -82,7 +78,6 @@ syscall_handler(struct intr_frame *f UNUSED)
   }
   case SYS_EXEC:
   {
-    // printf("...SYS_CODE : SYS_EXEC\n");
     if(!address_valid(f->esp+4) || !address_valid(f->esp+5)||!address_valid(f->esp+6)||!address_valid(f->esp+7)) exit(-1);
     char *file_name = (char *)(*((int *)f->esp + 1));
     if(!string_valid(file_name)) exit(-1);
@@ -91,7 +86,6 @@ syscall_handler(struct intr_frame *f UNUSED)
   }
   case SYS_WAIT:
   {
-    // printf("...SYS_CODE : SYS_WAIT\n");
     // pid_t就是int
     if(!address_valid((int *)f->esp+1)) exit(-1);
     pid_t pid = *((int *)f->esp + 1);
@@ -101,7 +95,6 @@ syscall_handler(struct intr_frame *f UNUSED)
 
   case SYS_CREATE:
   {
-    // printf("...SYS_CODE : SYS_CREATE\n");
     if(!address_valid((int *)f->esp+1) || !address_valid((int *)f->esp+2)) exit(-1);
     char *file = (char *)(*((int *)f->esp + 1));
     if(!address_valid(file)) exit(-1);
@@ -111,7 +104,6 @@ syscall_handler(struct intr_frame *f UNUSED)
   }
   case SYS_REMOVE:
   {
-    // printf("...SYS_CODE : SYS_REMOVE\n");
     if(!address_valid((int *)f->esp+1)) exit(-1);
     char *file = (char *)(*((int *)f->esp + 1));
     if(!address_valid(file)) exit(-1);
@@ -120,7 +112,6 @@ syscall_handler(struct intr_frame *f UNUSED)
   }
   case SYS_OPEN:
   {
-    // printf("...SYS_CODE : SYS_OPEN\n");
     if(!address_valid((int *)f->esp+1)) exit(-1);
     char *file = (char *)(*((int *)f->esp + 1));
     if(!address_valid(file)) exit(-1);
@@ -129,7 +120,6 @@ syscall_handler(struct intr_frame *f UNUSED)
   }
   case SYS_FILESIZE:
   {
-    // printf("...SYS_CODE : SYS_FILESIZE\n");
     if(!address_valid((int *)f->esp+1)) exit(-1);
     int fd = *((int *)f->esp + 1);
     f->eax = filesize(fd);
@@ -137,7 +127,6 @@ syscall_handler(struct intr_frame *f UNUSED)
   }
   case SYS_READ:
   {
-    // printf("...SYS_CODE : SYS_READ\n");
     if(!address_valid((int *)f->esp+1)||!address_valid((int *)f->esp+2)||!address_valid((int *)f->esp+3)) exit(-1);
     int fd = *((int *)f->esp + 1);
     void *buffer = (void *)(*((int *)f->esp + 2));
@@ -148,7 +137,6 @@ syscall_handler(struct intr_frame *f UNUSED)
   }
   case SYS_WRITE:
   {
-    // printf("...SYS_CODE : SYS_WRITE\n");
     if(!address_valid((int *)f->esp+1)||!address_valid((int *)f->esp+2)||!address_valid((int *)f->esp+3)) exit(-1);
     int fd = *((int *)f->esp + 1);
     void *buffer = (void *)(*((int *)f->esp + 2));
@@ -161,7 +149,6 @@ syscall_handler(struct intr_frame *f UNUSED)
   }
   case SYS_SEEK:
   {
-    // printf("...SYS_CODE : SYS_SEEK\n");
     if(!address_valid((int *)f->esp+1)||!address_valid((int *)f->esp+2)) exit(-1);
     int fd = *((int *)f->esp + 1);
     unsigned int position = *((int *)f->esp + 2);
@@ -170,7 +157,6 @@ syscall_handler(struct intr_frame *f UNUSED)
   }
   case SYS_TELL:
   {
-    // printf("...SYS_CODE : SYS_TELL\n");
     if(!address_valid((int *)f->esp+1)) exit(-1);
     int fd = *((int *)f->esp + 1);
     f->eax = tell(fd);
@@ -178,14 +164,12 @@ syscall_handler(struct intr_frame *f UNUSED)
   }
   case SYS_CLOSE:
   {
-    // printf("...SYS_CODE : SYS_CLOSE\n");
     if(!address_valid((int *)f->esp+1)) exit(-1);
     int fd = *((int *)f->esp + 1);
     close(fd);
     break;
   }
   default:
-    // printf("other!\n");
     break;
   }
 }
@@ -198,12 +182,9 @@ void halt(void)
 void exit(int status)
 {
   // 设置退出状态，然后退出
-  // printf("...exit is called!\n");
   struct thread *cur = thread_current();
   cur->ret = status;
   thread_exit();
-  // printf("...leave exit!\n");
-  // process_exit();
 }
 /*
  * 运行名称为cmd_line的可执行文件，并传递所有给定的参数，并返回新进程的程序ID（pid）。 
@@ -213,7 +194,6 @@ void exit(int status)
 */
 pid_t exec(const char *file)
 {
-  // printf("...exec\n");
   if(file == NULL || !is_user_vaddr(file)) return TID_ERROR;
   tid_t tid = process_execute(file);
   if(tid == TID_ERROR) return TID_ERROR;
@@ -221,7 +201,6 @@ pid_t exec(const char *file)
 }
 int wait(pid_t pid)
 {
-  // printf("wait:%d\n", pid);
   return process_wait(pid);
 }
 bool create(const char *file, unsigned initial_size)
@@ -295,7 +274,6 @@ int write(int fd, const void *buffer, unsigned length)
   }
   else
   {
-    // printf("write:%d %d\n", fd, length);
     struct file_descriptor *descriptor = getFile(fd);
     if(descriptor == NULL) return 0;
     lock_acquire(&descriptor->out);
@@ -308,7 +286,6 @@ int write(int fd, const void *buffer, unsigned length)
 }
 void seek(int fd, unsigned position)
 {
-  // printf("seek:%d %d\n", fd, position);
   struct file_descriptor *descriptor = getFile(fd);
   if(descriptor == NULL) return ;
   file_seek(descriptor->f, position);

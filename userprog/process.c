@@ -46,13 +46,6 @@ tid_t process_execute(const char *file_name)
   exec_name = strtok_r(buffer, " ", &save_ptr);
 
   /* Create a new thread to execute FILE_NAME. */
-  // 还没有加载可执行文件，加载在start_process中完成
-  // struct file *f = filesys_open(exec_name);
-  // if (f == NULL)
-  //   return -1;
-  // else
-  //   file_close(f);
-
   tid = thread_create(exec_name, PRI_DEFAULT, start_process, fn_copy);
   // 邱维东的修改结束
   if (tid == TID_ERROR)
@@ -114,7 +107,6 @@ start_process(void *file_name_)
   palloc_free_page(file_name);
   if (!success)
   {
-    // thread_exit();
     exit(-1);
   }
   // thread_current()->self = filesys_open();
@@ -143,7 +135,6 @@ start_process(void *file_name_)
    does nothing. */
 int process_wait(tid_t child_tid UNUSED)
 {
-  // sema_down(&thread_current()->wait_for_child);
   // 首先在children中查找child_tid对应的线程
   struct list_elem *le = NULL;
   struct thread_entity *te = NULL;
@@ -230,7 +221,6 @@ void process_exit(void)
       free(te);
     }
   }
-  // sema_up(&thread_current()->parent->wait_for_child);
 }
 
 /* Sets up the CPU for running user code in the current
@@ -341,14 +331,11 @@ bool load(const char *file_name, void (**eip)(void), void **esp)
     goto done;
   process_activate();
 
-  // printf("begin load file!\n");
   /* Open executable file. */
   file = filesys_open(exec_name);
 
-  // printf("end load file!\n");
   if (file == NULL)
   {
-    // exit(-1);
     printf("load: %s: open failed\n", exec_name);
     goto done;
   }
@@ -356,7 +343,6 @@ bool load(const char *file_name, void (**eip)(void), void **esp)
   /* Read and verify executable header. */
   if (file_read(file, &ehdr, sizeof ehdr) != sizeof ehdr || memcmp(ehdr.e_ident, "\177ELF\1\1\1", 7) || ehdr.e_type != 2 || ehdr.e_machine != 3 || ehdr.e_version != 1 || ehdr.e_phentsize != sizeof(struct Elf32_Phdr) || ehdr.e_phnum > 1024)
   {
-    // exit(-1);
     printf("load: %s: error loading executable\n", file_name);
     goto done;
   }
@@ -432,7 +418,6 @@ bool load(const char *file_name, void (**eip)(void), void **esp)
   file_deny_write(thread_current()->self);
 done:
   /* We arrive here whether the load is successful or not. */
-  // printf("end setup_stack!\n");
   file_close(file);
   return success;
 }
@@ -572,49 +557,30 @@ setup_stack(void **esp, char *file_name)
 
   while (param != NULL)
   {
-    // printf("param : %s\n",param);
     int len = strlen(param) + 1;
     *esp -= len;
     memcpy(*esp, param, len);
     argv[argc++] = *esp;
     param = strtok_r(NULL, " ", &save_ptr);
-    // printf("param : %s\n",param);
   }
   // 4字节对其
   while ((int)(*esp) % 4 != 0)
     *esp -= 1;
-  // printf("1\n");
   argv[argc] = NULL;
   for (int i = argc; i >= 0; i--)
   {
     *esp -= sizeof(char *);
     memcpy(*esp, argv + i, sizeof(char *));
   }
-  // printf("2\n");
   char **tmp = (char **)*esp;
   *esp -= sizeof(char **);
-  // *(char **)(*esp) = *esp + sizeof(char **);
   memcpy(*esp, &tmp, sizeof(char **));
-  // printf("3\n");
   // 设置argc
   *esp -= sizeof(int);
   memcpy(*esp, &argc, sizeof(int));
-  // printf("4\n");
   // 设置返回地址0
   *esp -= sizeof(void *);
-  // *(void **)(*esp) = NULL;
   memset(*esp, 0, sizeof(void *));
-
-  // printf("(args) begin\n");
-  // int ret = *((int *)(*esp));
-  // argc = *((int *)((*esp)+4));
-  // char ** agv = *((char ***)((*esp)+8));
-  // printf("(args) argc = %d\n",argc);
-  // for(int i=0;i<argc;i++)
-  //   printf("(args) argv[%d] = \'%s\'\n",i,*(agv+i));
-  // printf("(args) argv[%d] = null\n",argc);
-  // printf("(args) end\n");
-
   return success;
 }
 
